@@ -18,6 +18,7 @@ fun AppNavigation() {
 
     NavHost(navController = navController, startDestination = "splash") {
         composable("splash") { SplashScreen(navController) }
+        composable("region_blocked") { RegionBlockedScreen() }
         composable("welcome") { WelcomeScreen(navController) }
         composable("login") { LoginScreen(navController, securityViewModel) }
         composable("dashboard") { DashboardScreen(navController) }

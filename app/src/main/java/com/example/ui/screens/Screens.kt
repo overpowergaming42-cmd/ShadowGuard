@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,14 +19,46 @@ import com.example.ui.components.GlassCard
 import com.example.ui.theme.NeonBlue
 import com.example.ui.theme.CyberGray
 import com.example.ui.theme.ElectricCyan
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+suspend fun checkIsBangladesh(): Boolean {
+    return withContext(Dispatchers.IO) {
+        try {
+            val url = java.net.URL("https://ipapi.co/country/")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 3000
+            connection.readTimeout = 3000
+            connection.requestMethod = "GET"
+            val countryCode = connection.inputStream.bufferedReader().use { it.readText() }.trim()
+            countryCode.equals("BD", ignoreCase = true)
+        } catch (e: Exception) {
+            // Fallback to Timezone/Locale if network fails
+            val timeZone = java.util.TimeZone.getDefault().id
+            if (timeZone == "Asia/Dhaka") true
+            else java.util.Locale.getDefault().country.equals("BD", ignoreCase = true)
+        }
+    }
+}
 
 @Composable
 fun SplashScreen(navController: NavController) {
     LaunchedEffect(Unit) {
-        delay(2000)
-        navController.navigate("welcome") {
-            popUpTo("splash") { inclusive = true }
+        val minDelay = async { delay(2000) }
+        val isBD = async { checkIsBangladesh() }
+        
+        minDelay.await()
+        val allowed = isBD.await()
+        if (allowed) {
+            navController.navigate("welcome") {
+                popUpTo("splash") { inclusive = true }
+            }
+        } else {
+            navController.navigate("region_blocked") {
+                popUpTo("splash") { inclusive = true }
+            }
         }
     }
     Box(
@@ -54,7 +87,43 @@ fun SplashScreen(navController: NavController) {
 }
 
 @Composable
+fun RegionBlockedScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CyberGray),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+            Icon(
+                imageVector = Icons.Default.Block,
+                contentDescription = null,
+                tint = com.example.ui.theme.DangerRed,
+                modifier = Modifier.size(80.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Access Denied",
+                style = MaterialTheme.typography.headlineMedium,
+                color = com.example.ui.theme.DangerRed,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "This application is strictly restricted to users within Bangladesh.",
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
 fun WelcomeScreen(navController: NavController) {
+    var accessKey by remember { mutableStateOf("") }
+    var isError by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     Scaffold(containerColor = CyberGray) { innerPadding ->
         Column(
             modifier = Modifier
@@ -68,11 +137,11 @@ fun WelcomeScreen(navController: NavController) {
                 imageVector = Icons.Default.Security,
                 contentDescription = null,
                 tint = NeonBlue,
-                modifier = Modifier.size(120.dp)
+                modifier = Modifier.size(100.dp)
             )
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             Text(
-                "Smart Security\nfor Smart Users",
+                "Access Restricted",
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -80,17 +149,60 @@ fun WelcomeScreen(navController: NavController) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                "Protect your device with military-grade encryption and AI-powered threat detection.",
+                "Please enter your exclusive Access Key to continue.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.Gray,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            OutlinedTextField(
+                value = accessKey,
+                onValueChange = { 
+                    accessKey = it
+                    isError = false
+                },
+                label = { Text("Access Key") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = isError,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = NeonBlue,
+                    unfocusedBorderColor = Color.DarkGray,
+                    focusedLabelColor = NeonBlue,
+                    errorBorderColor = com.example.ui.theme.DangerRed
+                )
+            )
+            Spacer(modifier = Modifier.height(24.dp))
             CyberButton(
-                text = "GET STARTED",
-                onClick = { navController.navigate("login") },
+                text = "VERIFY KEY",
+                onClick = { 
+                    if (accessKey == "Sakibvai420@") {
+                        navController.navigate("login") {
+                            popUpTo("welcome") { inclusive = true }
+                        }
+                    } else {
+                        isError = true
+                    }
+                },
                 modifier = Modifier.fillMaxWidth()
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            TextButton(onClick = {
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                intent.data = android.net.Uri.parse("https://api.whatsapp.com/send?phone=+8801839556139")
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    // WhatsApp not installed or error
+                }
+            }) {
+                Text(
+                    "Get Key via WhatsApp",
+                    color = NeonBlue,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
